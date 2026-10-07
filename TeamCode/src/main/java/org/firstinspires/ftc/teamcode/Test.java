@@ -1,24 +1,41 @@
 package org.firstinspires.ftc.teamcode;
 
-import static java.lang.Math.atan2;
 import static java.lang.Math.cos;
 import static java.lang.Math.sin;
 
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
+import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
+import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.ImuOrientationOnRobot;
+import com.qualcomm.robotcore.util.ElapsedTime;
+
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.ImuOrientationOnRobot;
+@TeleOp(name = "Test", group = "LinearOpMode")
+public class Test extends LinearOpMode {
 
-//This is my personal code. If you want to use this code, please rename it.
-@TeleOp(name = "Nathan's OpMode", group = "LinearOpMode")
-public class NathanOpMode extends LinearOpMode {
+    ElapsedTime Time = new ElapsedTime();
+
+    double heading = 0;
+    double x;
+    double y;
+    double moveSpeed = 1.0;
+
+    boolean lastA = false;
+    boolean fieldToggle = false;
+    boolean cycle = false;
+    double launcher = 0.0;
+
+    double axial;
+    double lateral;
+    double yaw;
+
     @Override
     public void runOpMode() throws InterruptedException {
 
@@ -31,7 +48,6 @@ public class NathanOpMode extends LinearOpMode {
         flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         CRServo right_launch_servo = hardwareMap.get(CRServo.class, "rightServo");
         CRServo left_launch_servo = hardwareMap.get(CRServo.class, "leftServo");
-
 
         FRONT_L.setDirection(DcMotorSimple.Direction.FORWARD);
         FRONT_R.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -48,63 +64,54 @@ public class NathanOpMode extends LinearOpMode {
         IMU.Parameters parameters = new IMU.Parameters(orientation);
         imu.initialize(parameters);
 
-        double heading = 0;
-        double x;
-        double y;
-
-        boolean cycle = false;
-        boolean lastA = false;
-        boolean lastB = false;
-        boolean yawReset = false;
-        boolean fieldToggle = false;
-        double launcher = 0.0;
-
-        double forward_p;
-        double right_p;
-        double spin_p;
+        imu.resetYaw();
+        Time.reset();
 
         waitForStart();
-        imu.resetYaw();
-        while (opModeIsActive()) {
-            telemetry.addLine("dpad up toggles field centric drive");
-            telemetry.addLine("dpad down resets yaw value");
-            telemetry.addLine("dpad right toggles rotation lock");
-            telemetry.addLine("dpad left resets strafe distance");
+        while(opModeIsActive()) {
 
             y = gamepad1.left_stick_y;
             x = gamepad1.left_stick_x;
-            spin_p = gamepad1.right_stick_x;
+            yaw = gamepad1.right_stick_x;
 
             heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
             double flywheelVelocity = flywheel.getVelocity();
 
+            telemetry.addLine("Press Left Stick to change move speed");
+            if (gamepad1.leftStickButtonWasPressed()) {
+                if (moveSpeed == 1) {
+                    moveSpeed = 0.5;
+                } else {
+                    moveSpeed = 1;
+                }
+            }
+            telemetry.addData("Move speed = ", moveSpeed);
+
+            telemetry.addLine("Press Dpad up to toggle field centric");
             if(gamepad1.dpad_up && !lastA) {
                 fieldToggle = !fieldToggle;
             }
-            lastA = gamepad1.dpad_up;
+                lastA = gamepad1.dpad_up;
 
-            if(fieldToggle) {
-                forward_p = y*cos(-heading) - x * sin(-heading);
-                right_p = y *sin(-heading) + x*cos(-heading);
+            if (fieldToggle) {
+                axial = y*cos(-heading) - x * sin(-heading);
+                lateral = y *sin(-heading) + x*cos(-heading);
+                telemetry.addLine("Field Centric Toggled: On");
             }
             else {
-                forward_p = y;
-                right_p = x;
+                axial = y;
+                lateral = x;
+                telemetry.addLine("Field Centric Toggled: Off");
             }
-            telemetry.addData("Field Centric Toggled:", fieldToggle);
-            telemetry.update();
 
-            if(gamepad1.dpad_down && !lastB) {
-                yawReset = !yawReset;
-            }
-            lastB = gamepad1.dpad_down;
-
-            if(yawReset) {
+            telemetry.addLine("Press Right Stick to reset yaw");
+            if(gamepad1.rightStickButtonWasPressed()) {
                 imu.resetYaw();
             }
 
+            telemetry.addLine("Press a to fire");
             if(gamepad1.a) {
-                if(flywheelVelocity <= 400) {
+                if(flywheelVelocity <= 1500) {
                     right_launch_servo.setPower(0);
                     left_launch_servo.setPower(0);
                     launcher = 1.0;
@@ -112,20 +119,18 @@ public class NathanOpMode extends LinearOpMode {
                         cycle = !cycle;
                     }
                 }
-                if(flywheelVelocity >= 400 && flywheelVelocity < 500) {
+                if(flywheelVelocity >= 1500 && flywheelVelocity < 1800) {
                     if(cycle) {
-                        launcher = 0.0;
                         right_launch_servo.setPower(0);
                         left_launch_servo.setPower(0);
                     }
                     else {
-                        launcher = 0.3;
                         right_launch_servo.setPower(-1);
                         left_launch_servo.setPower(1);
                     }
                 }
-                if(flywheelVelocity > 500) {
-                    launcher = -1.0;
+                if(flywheelVelocity > 1800) {
+                    launcher = 0.0;
                     right_launch_servo.setPower(0);
                     left_launch_servo.setPower(0);
                     cycle = !cycle;
@@ -139,16 +144,32 @@ public class NathanOpMode extends LinearOpMode {
             }
 
 
-            double frontRightPower = forward_p + spin_p + right_p;
-            double frontLeftPower = forward_p - spin_p - right_p;
-            double backRightPower = forward_p + spin_p - right_p;
-            double backLeftPower = forward_p - spin_p + right_p;
+            axial *= moveSpeed;
+            yaw *= moveSpeed;
+            lateral *= moveSpeed;
 
-            if (frontRightPower <= 0 && frontRightPower >= 0 && frontLeftPower <= 0 && frontLeftPower >= 0 && backLeftPower <= 0 && backLeftPower >= 0 && backRightPower <= 0 && backRightPower >= 0) {
-                FRONT_R.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                FRONT_L.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                BACK_L.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                BACK_R.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            double frontRightPower = axial + yaw + lateral;
+            double frontLeftPower = axial - yaw - lateral;
+            double backRightPower = axial + yaw - lateral;
+            double backLeftPower = axial - yaw + lateral;
+
+            if (frontRightPower <= 0 && frontRightPower >= 0 ) {
+                if (frontLeftPower <= 0 && frontLeftPower >= 0) {
+                    if (backRightPower <= 0 && backRightPower >= 0) {
+                        if (backLeftPower <= 0 && backLeftPower >=0) {
+                            FRONT_R.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                            FRONT_L.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                            BACK_L.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                            BACK_R.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                        }
+                    }
+                }
+                }
+            else {
+                FRONT_R.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                FRONT_L.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                BACK_L.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                BACK_R.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             }
 
             double max;
@@ -168,11 +189,12 @@ public class NathanOpMode extends LinearOpMode {
             BACK_R.setPower(backRightPower);
             BACK_L.setPower(backLeftPower);
             flywheel.setPower(launcher);
-
+            telemetry.addData("Status", "Run time: " + Time.toString());
             telemetry.addData("Front Wheel Power Right/Left", "%4.2f, %4.2f", frontRightPower, frontLeftPower);
             telemetry.addData("Back Wheel Power Right/Left", "%4.2f, %4.2f", backRightPower, backLeftPower);
             telemetry.addData("Current Rotation (Degrees)", "%.2f", heading);
             telemetry.update();
         }
     }
+
 }

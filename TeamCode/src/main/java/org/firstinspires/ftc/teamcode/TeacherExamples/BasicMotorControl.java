@@ -12,8 +12,8 @@ public class BasicMotorControl extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
         //In some cases you only need two motors for tank drive, but in this case I have four
-        DcMotor frontleft = hardwareMap.get(DcMotor.class, "backleft");
-        DcMotor frontright = hardwareMap.get(DcMotor.class, "backright");
+        DcMotor frontleft = hardwareMap.get(DcMotor.class, "frontleft");
+        DcMotor frontright = hardwareMap.get(DcMotor.class, "frontright");
         DcMotor backleft = hardwareMap.get(DcMotor.class, "backleft");
         DcMotor backright = hardwareMap.get(DcMotor.class, "backright");
 
@@ -31,8 +31,8 @@ public class BasicMotorControl extends LinearOpMode {
             axial = gamepad1.left_stick_y;
             yaw = gamepad1.right_stick_x;
 
-            double left = axial + yaw;
-            double right = axial - yaw;
+            double left = axial - yaw;
+            double right = axial + yaw;
 
             double max;
             //This makes sure the motors don't exceed 1.0/-1.0
