@@ -6,13 +6,17 @@ import static java.lang.Math.sin;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.ImuOrientationOnRobot;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+
+import java.util.concurrent.TimeUnit;
 
 @Autonomous(name ="Auto Example", group = "examples")
 public class autoExample extends LinearOpMode {
@@ -22,13 +26,16 @@ public class autoExample extends LinearOpMode {
     DcMotor backright;
     DcMotor intake;
     DcMotorEx flywheel;
+    CRServo windmill;
+    CRServo left_intake_servo;
+    CRServo right_intake_servo;
     IMU imu;
     double heading;
     double yaw;
-    double frontLeftPower;
-    double frontRightPower;
-    double backRightPower;
-    double backLeftPower;
+    double targetVel = 1680;
+    boolean shooting = false;
+    ElapsedTime runtime = new ElapsedTime();
+    ElapsedTime shooterTimer = new ElapsedTime();
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -40,12 +47,17 @@ public class autoExample extends LinearOpMode {
         intake = hardwareMap.get(DcMotor.class, "intake");
         flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
         flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        windmill = hardwareMap.get(CRServo.class, "windmill");
+        right_intake_servo = hardwareMap.get(CRServo.class, "rightservo");
+        left_intake_servo = hardwareMap.get(CRServo.class, "leftservo");
         imu = hardwareMap.get(IMU.class, "imu");
 
         frontleft.setDirection(DcMotorSimple.Direction.REVERSE);
         backleft.setDirection(DcMotorSimple.Direction.REVERSE);
         frontright.setDirection(DcMotorSimple.Direction.FORWARD);
         backright.setDirection(DcMotorSimple.Direction.FORWARD);
+        intake.setDirection(DcMotorSimple.Direction.FORWARD);
+        flywheel.setDirection(DcMotorSimple.Direction.FORWARD);
 
         ImuOrientationOnRobot orientation = new RevHubOrientationOnRobot(
                 RevHubOrientationOnRobot.LogoFacingDirection.LEFT,
@@ -57,8 +69,12 @@ public class autoExample extends LinearOpMode {
         imu.resetYaw();
         waitForStart();
 
+
+        telemetry.addData("Runtime: ", runtime);
     }
-    public void move(double y, double x, double targetAngle, double rotateSpeed, double time) throws InterruptedException {
+    public void move(double y, double x, double targetAngle, double rotateSpeed, long time, double power) throws InterruptedException {
+
+        time *= (1/power);
 
         heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
         /*
@@ -73,14 +89,15 @@ public class autoExample extends LinearOpMode {
             while (heading != targetAngle) {
                 yaw = rotateSpeed * error / targetAngle;
             }
-        } else {
+        }
+        else {
             yaw = 0;
         }
 
-        frontLeftPower = axial - lateral + yaw;
-        frontRightPower = axial + lateral - yaw;
-        backLeftPower = axial + lateral + yaw;
-        backRightPower = axial - lateral - yaw;
+        double frontLeftPower = axial - lateral + yaw * power;
+        double frontRightPower = axial + lateral - yaw * power;
+        double backLeftPower = axial + lateral + yaw * power;
+        double backRightPower = axial - lateral - yaw * power;
 
         double max;
         max = Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower));
@@ -126,10 +143,54 @@ public class autoExample extends LinearOpMode {
         backright.setPower(0);
     }
     public void intake(double time) {
+        intake.setPower(1);
+        right_intake_servo.setPower(-1);
+        left_intake_servo.setPower(1);
 
+        sleep((long) time);
+
+        intake.setPower(0);
+        right_intake_servo.setPower(0);
+        left_intake_servo.setPower(0);
     }
     public void shoot() {
 
+        shooting = true;
+        shooterTimer.reset();
+
+        double currentVel = flywheel.getVelocity();
+        double error = targetVel - currentVel;
+        double shootSpeed = 10;
+        double lastError;
+        double ballShot = 0;
+
+        while (shooting) {
+            if (error != 0) {
+                error = targetVel - currentVel;
+            }
+            else {
+                error = 0.1;
+            }
+            double shootPower = shootSpeed * error / targetVel;
+            flywheel.setPower(shootPower);
+
+            if (-10 < error && error < 10) {
+                windmill.setPower(1);
+                lastError = 1700;
+            }
+            else {
+                windmill.setPower(0);
+                lastError = 0;
+            }
+
+            if((error - lastError) < 0) {
+                ballShot += 1;
+            }
+            if (ballShot >= 4) {
+                shooting = false;
+                flywheel.setPower(0);
+            }
+        }
     }
 }
 
